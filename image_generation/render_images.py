@@ -316,7 +316,7 @@ def render_scene(args,
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
   while True:
     try:
-      # bpy.ops.render.render(write_still=True)
+      bpy.ops.render.render(write_still=True)
       break
     except Exception as e:
       print(e)
@@ -344,6 +344,7 @@ def render_scene(args,
   for n in tree.nodes: # Clear default nodes
     tree.nodes.remove(n)
   render_layers = tree.nodes.new('CompositorNodeRLayers') # Create input render layer node.
+  # from IPython import embed; embed(); exit();
   bpy.context.scene.render.layers["RenderLayer"].use_pass_color = True
   albedo_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
   albedo_file_output.label = 'ID Output as RGB'
@@ -351,7 +352,7 @@ def render_scene(args,
 
   albedo_file_output.file_slots[0].path = output_image.replace('.png', '_inst_id_')
   links.new(render_layers.outputs['Color'], albedo_file_output.inputs[0])
-  render_args.filepath = '/tmp/dummy.png'
+  render_args.filepath = '/tmp/dummy.png'  # jus ignore because we only need ids
   bpy.ops.render.render(write_still=True)
 
   with open(output_scene, 'w') as f:
