@@ -309,15 +309,50 @@ def render_scene(args,
   # Now make some random objects
   objects, blender_objects = add_random_objects(scene_struct, num_objects, args, camera)
 
+  # bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
+
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
   while True:
     try:
-      bpy.ops.render.render(write_still=True)
+      # bpy.ops.render.render(write_still=True)
       break
     except Exception as e:
       print(e)
+  
+  # render object id in rgb color
+  # from IPython import embed; embed(); exit();
+  
+  import itertools
+  x = [0.0, 0.5, 1.0]
+  colors = list(itertools.product(x, x, x))[1:]
+  random.shuffle(colors)
+  for i, obj in enumerate(blender_objects):
+    material_name = "auto.inst_material." + obj.name
+    material = bpy.data.materials.new(material_name)
+
+    if obj.data.materials:
+      obj.data.materials[0] = material
+    else:
+      obj.data.materials.append(material)
+    obj.active_material.diffuse_color = colors[i]
+  
+  bpy.context.scene.use_nodes = True
+  tree = bpy.context.scene.node_tree
+  links = tree.links
+  for n in tree.nodes: # Clear default nodes
+    tree.nodes.remove(n)
+  render_layers = tree.nodes.new('CompositorNodeRLayers') # Create input render layer node.
+  bpy.context.scene.render.layers["RenderLayer"].use_pass_color = True
+  albedo_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
+  albedo_file_output.label = 'ID Output as RGB'
+  albedo_file_output.base_path = ''
+
+  albedo_file_output.file_slots[0].path = output_image.replace('.png', '_inst_id_')
+  links.new(render_layers.outputs['Color'], albedo_file_output.inputs[0])
+  render_args.filepath = '/tmp/dummy.png'
+  bpy.ops.render.render(write_still=True)
 
   with open(output_scene, 'w') as f:
     json.dump(scene_struct, f, indent=2)
