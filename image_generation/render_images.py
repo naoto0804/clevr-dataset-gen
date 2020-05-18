@@ -310,28 +310,29 @@ def render_scene(args,
   objects, blender_objects = add_random_objects(scene_struct, num_objects, args, camera)
 
   ## Added (Start)
+  # instance id is stored as 32 bit float
+  # if there are N objects, then id 0 ~ N - 1 is randomly assigned to each
   # assign id to each object
   for i, o in enumerate(blender_objects):
     o.pass_index = i
 
-  # add new node
+  # add new node for composition
   bpy.context.scene.use_nodes = True
   tree = bpy.context.scene.node_tree
   bpy.context.scene.render.layers["RenderLayer"].use_pass_object_index = True
   node = tree.nodes.new(type="CompositorNodeOutputFile")
   node.base_path = '../output/images'
   node.format.file_format = 'OPEN_EXR'
-  # from IPython import embed; embed(); exit();
 
   # for instance segmentation
   node.file_slots[0].path = 'inst'
-  # node.file_slots[0].format.file_format = 'OPEN_EXR'
   tree.links.new(tree.nodes["Render Layers"].outputs['IndexOB'], node.inputs[0])
 
   # for rendered image
   node.layer_slots.new('Image')
   node.file_slots[1].path = 'rgb'
-  # node.file_slots[1].format.file_format = 'PNG'
+  node.file_slots[1].use_node_format = False
+  node.file_slots[1].format.file_format = 'PNG'
   tree.links.new(tree.nodes["Render Layers"].outputs['Image'], node.inputs[1])
   ## Added (end)
 
