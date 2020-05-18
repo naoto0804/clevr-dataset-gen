@@ -103,7 +103,7 @@ parser.add_argument('--output_scene_dir', default='../output/scenes/',
          "It will be created if it does not exist.")
 parser.add_argument('--output_scene_file', default='../output/CLEVR_scenes.json',
     help="Path to write a single JSON file containing all scene information")
-parser.add_argument('--output_blend_dir', default='output/blendfiles',
+parser.add_argument('--output_blend_dir', default='../output/blendfiles',
     help="The directory where blender scene files will be stored, if the " +
          "user requested that these files be saved using the " +
          "--save_blendfiles flag; in this case it will be created if it does " +
@@ -309,51 +309,42 @@ def render_scene(args,
   # Now make some random objects
   objects, blender_objects = add_random_objects(scene_struct, num_objects, args, camera)
 
-  # bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
+  ## Added (Start)
+  # assign id to each object
+  for i, o in enumerate(blender_objects):
+    o.pass_index = i
+
+  # add new node
+  bpy.context.scene.use_nodes = True
+  tree = bpy.context.scene.node_tree
+  bpy.context.scene.render.layers["RenderLayer"].use_pass_object_index = True
+  node = tree.nodes.new(type="CompositorNodeOutputFile")
+  node.base_path = '../output/images'
+  node.format.file_format = 'OPEN_EXR'
+  # from IPython import embed; embed(); exit();
+
+  # for instance segmentation
+  node.file_slots[0].path = 'inst'
+  # node.file_slots[0].format.file_format = 'OPEN_EXR'
+  tree.links.new(tree.nodes["Render Layers"].outputs['IndexOB'], node.inputs[0])
+
+  # for rendered image
+  node.layer_slots.new('Image')
+  node.file_slots[1].path = 'rgb'
+  # node.file_slots[1].format.file_format = 'PNG'
+  tree.links.new(tree.nodes["Render Layers"].outputs['Image'], node.inputs[1])
+  ## Added (end)
 
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
   while True:
     try:
-      bpy.ops.render.render(write_still=True)
+      # bpy.ops.render.render(write_still=True)
+      bpy.ops.render.render()
       break
     except Exception as e:
       print(e)
-  
-  # render object id in rgb color
-  # from IPython import embed; embed(); exit();
-  
-  import itertools
-  x = [0.0, 0.5, 1.0]
-  colors = list(itertools.product(x, x, x))[1:]
-  random.shuffle(colors)
-  for i, obj in enumerate(blender_objects):
-    material_name = "auto.inst_material." + obj.name
-    material = bpy.data.materials.new(material_name)
-
-    if obj.data.materials:
-      obj.data.materials[0] = material
-    else:
-      obj.data.materials.append(material)
-    obj.active_material.diffuse_color = colors[i]
-  
-  bpy.context.scene.use_nodes = True
-  tree = bpy.context.scene.node_tree
-  links = tree.links
-  for n in tree.nodes: # Clear default nodes
-    tree.nodes.remove(n)
-  render_layers = tree.nodes.new('CompositorNodeRLayers') # Create input render layer node.
-  # from IPython import embed; embed(); exit();
-  bpy.context.scene.render.layers["RenderLayer"].use_pass_color = True
-  albedo_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
-  albedo_file_output.label = 'ID Output as RGB'
-  albedo_file_output.base_path = ''
-
-  albedo_file_output.file_slots[0].path = output_image.replace('.png', '_inst_id_')
-  links.new(render_layers.outputs['Color'], albedo_file_output.inputs[0])
-  render_args.filepath = '/tmp/dummy.png'  # jus ignore because we only need ids
-  bpy.ops.render.render(write_still=True)
 
   with open(output_scene, 'w') as f:
     json.dump(scene_struct, f, indent=2)
